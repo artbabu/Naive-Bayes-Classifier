@@ -65,7 +65,7 @@ class NBClassifier:
                 # const_calc = - (math.log10(math.sqrt(2 * math.pi)) + math.log10(f_estimators['std']))
                 # exp_calc = -(math.pow((xi[f] - f_estimators['mean']), 2) / 2 * f_estimators['var'])
 
-                log_prob = log_prob * (const_calc + exp_calc)
+                log_prob = log_prob * (const_calc * exp_calc)
             probs[key] = log_prob
 
         return probs
