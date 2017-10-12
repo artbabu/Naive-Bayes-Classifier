@@ -9,6 +9,7 @@ optparser.add_option("-m", "--max_prob", dest='invoke_mle', default=False, help=
 optparser.add_option("-p", "--predict", dest='invoke_classifier', default=False, help="naives bayes classifier")
 optparser.add_option("-i", "--inputfile", dest="input", default=os.path.join('data', 'preprocessed_datasets.csv'), help="input file")
 optparser.add_option("-c", "--targetclass", dest="target_class", default='GP_greater_than_0', help="Target Class")
+optparser.add_option("-b", "--besselbias", dest="bessel_bias", default=False, help="Bessel_Bias")
 
 
 (opts, _) = optparser.parse_args()
@@ -26,9 +27,13 @@ class NBClassifier:
         # calculating mean variance for class
         for val in self.training[self.target].unique():
             self.mle_map[val] = {}
+            class_prob = len(self.training[self.training[self.target] == val]) / float(self.training[self.target].count())
+            print val
+            print len(self.training[self.training[self.target] == val])
+            print len(self.training)
+            self.mle_map[val]['prob'] = math.log10(class_prob)
             for f in self.features:
                 self.mle_map[val][f] = calculate_mean_variance(self.training, f, cond_name=self.target, cond_val=val)
-
 
     def predict(self):
 
@@ -41,7 +46,7 @@ class NBClassifier:
 
             # cal max_prob and classify its class
             pred[row.id] = self.classify(probs)
-        print self.get_accuracy(pred)
+        print "accuracy ==> {}".format(self.get_accuracy(pred))
 
     def get_gaussian_prob_value(self, xi):
 
@@ -54,13 +59,13 @@ class NBClassifier:
             log_prob = 1
             for f in self.features:
                 f_estimators = val[f]
-                # const_calc = (1 / (math.sqrt(2 * math.pi) * f_estimators['std']))
-                # exp_calc = math.exp(-(math.pow(xi[f] - f_estimators['mean'], 2) / (2 * math.pow(f_estimators['var'], 2))))
+                const_calc = (1 / (math.sqrt(2 * math.pi) * f_estimators['std']))
+                exp_calc = math.exp(-(math.pow(xi[f] - f_estimators['mean'], 2) / float(2 * f_estimators['var'])))
 
-                const_calc = - (math.log10(math.sqrt(2 * math.pi)) + math.log10(f_estimators['std']))
-                exp_calc = -(math.pow((xi[f] - f_estimators['mean']), 2) / 2 * f_estimators['var'])
+                # const_calc = - (math.log10(math.sqrt(2 * math.pi)) + math.log10(f_estimators['std']))
+                # exp_calc = -(math.pow((xi[f] - f_estimators['mean']), 2) / 2 * f_estimators['var'])
 
-                log_prob += const_calc + exp_calc
+                log_prob = log_prob * (const_calc + exp_calc)
             probs[key] = log_prob
 
         return probs
@@ -70,8 +75,8 @@ class NBClassifier:
         max_prob = None
         max_prob_class = None
 
-        for key,val in prob_map.iteritems():
-            if val is None or val > max_prob:
+        for key, val in prob_map.iteritems():
+            if max_prob is None or val > max_prob:
                 max_prob = val
                 max_prob_class = key
 
@@ -81,13 +86,13 @@ class NBClassifier:
 
         total_count = len(self.testing.index)
         total_match = 0
-        print total_count
+        print "total Dataset Count => {}".format(total_count)
 
         for idx, row in self.testing.iterrows():
             if row[self.target] is predicted_data[row.id]:
                 total_match += 1
 
-        print total_match
+        print "Correctly predicted Count => {}".format(total_match)
         return (total_match / float(total_count)) * 100
 
 
@@ -102,16 +107,14 @@ def calculate_mean_variance(data, col_name, cond_name=None, cond_val=None):
         mean = sum(val_list) / float(len(val_list))
 
         var_attr = [pow((r - mean), 2) for r in val_list if r is not None]
-        var = sum(var_attr) / float(len(val_list))
+        if opts.bessel_bias:
+            var = sum(var_attr) / float(len(val_list) - 1)
+        else:
+            var = sum(var_attr) / float(len(val_list))
 
         return {'mean': mean, 'var': var, 'std': math.sqrt(var)}
 
     return None
-
-
-
-
-
 
 
 
@@ -141,7 +144,7 @@ elif opts.invoke_classifier:
 
     features = df._get_numeric_data().columns
 
-    drop_class = [u'id', u'sum_7yr_GP', u'sum_7yr_TOI',u'DraftYear', u'po_PlusMinus']
+    drop_class = [u'id', u'sum_7yr_GP', u'sum_7yr_TOI',u'DraftYear', u'po_PlusMinus', u'GP_greater_than_0']
 
     features = [f for f in features if f not in drop_class]
 
